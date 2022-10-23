@@ -83,6 +83,8 @@ import (
 
 const kubectlCmdHeaders = "KUBECTL_COMMAND_HEADERS"
 
+// os.Args  接受执行 二进制文件 参数
+// os.Stdin 标准输入流 os.Stdout 标准输出流 os.Stderr 标准输出错误流
 // NewDefaultKubectlCommand creates the `kubectl` command with default arguments
 func NewDefaultKubectlCommand() *cobra.Command {
 	return NewDefaultKubectlCommandWithArgs(NewDefaultPluginHandler(plugin.ValidPluginFilenamePrefixes), os.Args, os.Stdin, os.Stdout, os.Stderr)
@@ -90,6 +92,7 @@ func NewDefaultKubectlCommand() *cobra.Command {
 
 // NewDefaultKubectlCommandWithArgs creates the `kubectl` command with arguments
 func NewDefaultKubectlCommandWithArgs(pluginHandler PluginHandler, args []string, in io.Reader, out, errout io.Writer) *cobra.Command {
+	// 生成kubectl 命令行
 	cmd := NewKubectlCommand(in, out, errout)
 
 	if pluginHandler == nil {
@@ -102,6 +105,7 @@ func NewDefaultKubectlCommandWithArgs(pluginHandler PluginHandler, args []string
 		// only look for suitable extension executables if
 		// the specified command does not already exist
 		if _, _, err := cmd.Find(cmdPathPieces); err != nil {
+			// 扩展命令 需要搜索 执行任务所在环境的 命令行
 			if err := HandlePluginCommand(pluginHandler, cmdPathPieces); err != nil {
 				fmt.Fprintf(errout, "Error: %v\n", err)
 				os.Exit(1)
@@ -140,9 +144,17 @@ func NewDefaultPluginHandler(validPrefixes []string) *DefaultPluginHandler {
 	}
 }
 
-// Lookup implements PluginHandler
+// Lookup
+//
+//	@Description: 查找环境内命令时使用 判断 命令行 kubectl-`filename` 路径是否存在 存在则返回路径
+//	@receiver h
+//	@param filename
+//	@return string  命令行执行路径
+//	@return bool 命令行是否存在
 func (h *DefaultPluginHandler) Lookup(filename string) (string, bool) {
 	for _, prefix := range h.ValidPrefixes {
+		// exec.LookPath 判断命令是否存在 存在返回 环境变量重的路径
+
 		path, err := exec.LookPath(fmt.Sprintf("%s-%s", prefix, filename))
 		if err != nil || len(path) == 0 {
 			continue
@@ -154,6 +166,14 @@ func (h *DefaultPluginHandler) Lookup(filename string) (string, bool) {
 }
 
 // Execute implements PluginHandler
+// Execute
+//
+//	@Description: 执行命令行
+//	@receiver h
+//	@param executablePath 命令行执行绝对/相对路径
+//	@param cmdArgs 执行命令的参数
+//	@param environment 环境变量
+//	@return error
 func (h *DefaultPluginHandler) Execute(executablePath string, cmdArgs, environment []string) error {
 
 	// Windows does not support exec syscall.
@@ -195,6 +215,7 @@ func HandlePluginCommand(pluginHandler PluginHandler, cmdArgs []string) error {
 
 	// attempt to find binary, starting at longest possible name with given cmdArgs
 	for len(remainingArgs) > 0 {
+		// 判断 执行命令 是否存在
 		path, found := pluginHandler.Lookup(strings.Join(remainingArgs, "-"))
 		if !found {
 			remainingArgs = remainingArgs[:len(remainingArgs)-1]
@@ -219,6 +240,7 @@ func HandlePluginCommand(pluginHandler PluginHandler, cmdArgs []string) error {
 
 // NewKubectlCommand creates the `kubectl` command and its nested children.
 func NewKubectlCommand(in io.Reader, out, err io.Writer) *cobra.Command {
+	// 警告信息输出
 	warningHandler := rest.NewWarningWriter(err, rest.WarningWriterOptions{Deduplicate: true, Color: term.AllowsColorOutput(err)})
 	warningsAsErrors := false
 	// Parent command to which all subcommands are added.
@@ -233,10 +255,12 @@ func NewKubectlCommand(in io.Reader, out, err io.Writer) *cobra.Command {
 		Run: runHelp,
 		// Hook before and after Run initialize and write profiles to disk,
 		// respectively.
+		// 持续化前执行
 		PersistentPreRunE: func(*cobra.Command, []string) error {
 			rest.SetDefaultWarningHandler(warningHandler)
 			return initProfiling()
 		},
+		// 持续化后执行
 		PersistentPostRunE: func(*cobra.Command, []string) error {
 			if err := flushProfiling(); err != nil {
 				return err
@@ -256,26 +280,34 @@ func NewKubectlCommand(in io.Reader, out, err io.Writer) *cobra.Command {
 		},
 	}
 
+	// cmd 选择 无法 子参数应用
 	flags := cmds.PersistentFlags()
+
+	//SetNormalizeFunc 规范化 参数 将"_"替换"-"
 	flags.SetNormalizeFunc(cliflag.WarnWordSepNormalizeFunc) // Warn for "_" flags
 
 	// Normalize all flags that are coming from other packages or pre-configurations
 	// a.k.a. change all "_" to "-". e.g. glog package
+	//SetNormalizeFunc 规范化 参数 将"_"替换"-"
 	flags.SetNormalizeFunc(cliflag.WordSepNormalizeFunc)
 
+	// 传入参数默认 profile
 	addProfilingFlags(flags)
 
+	// 输出服务器返回的错误警告
 	flags.BoolVar(&warningsAsErrors, "warnings-as-errors", warningsAsErrors, "Treat warnings received from the server as errors and exit with a non-zero exit code")
-
+	// 生成一个 默认的 rest客户端的 值
 	kubeConfigFlags := genericclioptions.NewConfigFlags(true).WithDeprecatedPasswordFlag()
+	// 根据cmd传入的参数 解析到 生成的默认rest客户端的值
 	kubeConfigFlags.AddFlags(flags)
+
+	// 创建一个 资源版本的flags
 	matchVersionKubeConfigFlags := cmdutil.NewMatchVersionFlags(kubeConfigFlags)
 	matchVersionKubeConfigFlags.AddFlags(cmds.PersistentFlags())
 	// Updates hooks to add kubectl command headers: SIG CLI KEP 859.
 	addCmdHeaderHooks(cmds, kubeConfigFlags)
 
 	cmds.PersistentFlags().AddGoFlagSet(flag.CommandLine)
-
 	f := cmdutil.NewFactory(matchVersionKubeConfigFlags)
 
 	// Sending in 'nil' for the getLanguageFn() results in using
@@ -396,16 +428,18 @@ func NewKubectlCommand(in io.Reader, out, err io.Writer) *cobra.Command {
 }
 
 // addCmdHeaderHooks performs updates on two hooks:
-//   1) Modifies the passed "cmds" persistent pre-run function to parse command headers.
-//      These headers will be subsequently added as X-headers to every
-//      REST call.
-//   2) Adds CommandHeaderRoundTripper as a wrapper around the standard
-//      RoundTripper. CommandHeaderRoundTripper adds X-Headers then delegates
-//      to standard RoundTripper.
+//  1. Modifies the passed "cmds" persistent pre-run function to parse command headers.
+//     These headers will be subsequently added as X-headers to every
+//     REST call.
+//  2. Adds CommandHeaderRoundTripper as a wrapper around the standard
+//     RoundTripper. CommandHeaderRoundTripper adds X-Headers then delegates
+//     to standard RoundTripper.
+//
 // For beta, these hooks are updated unless the KUBECTL_COMMAND_HEADERS environment variable
 // is set, and the value of the env var is false (or zero).
 // See SIG CLI KEP 859 for more information:
-//   https://github.com/kubernetes/enhancements/tree/master/keps/sig-cli/859-kubectl-headers
+//
+//	https://github.com/kubernetes/enhancements/tree/master/keps/sig-cli/859-kubectl-headers
 func addCmdHeaderHooks(cmds *cobra.Command, kubeConfigFlags *genericclioptions.ConfigFlags) {
 	// If the feature gate env var is set to "false", then do no add kubectl command headers.
 	if value, exists := os.LookupEnv(kubectlCmdHeaders); exists {
