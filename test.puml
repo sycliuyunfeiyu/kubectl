@@ -1,0 +1,144 @@
+@startuml
+namespace apply {
+    class ApplyOptions << (S,Aquamarine) >> {
+        - cmdBaseName string
+        - objects []*resource.Info
+        - objectsCached bool
+
+        + RecordFlags *genericclioptions.RecordFlags
+        + Recorder genericclioptions.Recorder
+        + PrintFlags *genericclioptions.PrintFlags
+        + ToPrinter <font color=blue>func</font>(string) (printers.ResourcePrinter, error)
+        + DeleteFlags *delete.DeleteFlags
+        + DeleteOptions *delete.DeleteOptions
+        + ServerSideApply bool
+        + ForceConflicts bool
+        + FieldManager string
+        + Selector string
+        + DryRunStrategy util.DryRunStrategy
+        + DryRunVerifier *resource.DryRunVerifier
+        + Prune bool
+        + PruneResources []pruneResource
+        + All bool
+        + Overwrite bool
+        + OpenAPIPatch bool
+        + PruneWhitelist []string
+        + Validator validation.Schema
+        + Builder *resource.Builder
+        + Mapper meta.RESTMapper
+        + DynamicClient dynamic.Interface
+        + OpenAPISchema openapi.Resources
+        + Namespace string
+        + EnforceNamespace bool
+        + VisitedUids sets.String
+        + VisitedNamespaces sets.String
+        + PreProcessorFn <font color=blue>func</font>() error
+        + PostProcessorFn <font color=blue>func</font>() error
+
+        - applyOneObject(info *resource.Info) error
+        - shouldPrintObject() bool
+        - printObjects() error
+
+        + Complete(f util.Factory, cmd *cobra.Command) error
+        + GetObjects() ([]*resource.Info, error)
+        + SetObjects(infos []*resource.Info) 
+        + Run() error
+        + MarkNamespaceVisited(info *resource.Info) 
+        + MarkObjectVisited(info *resource.Info) error
+        + PrintAndPrunePostProcessor() <font color=blue>func</font>() error
+
+    }
+    class PatchBuffer << (S,Aquamarine) >> {
+        + Patch []byte
+        + PatchType types.PatchType
+
+    }
+    class Patcher << (S,Aquamarine) >> {
+        + Mapping *meta.RESTMapping
+        + Helper *resource.Helper
+        + Overwrite bool
+        + BackOff clockwork.Clock
+        + Force bool
+        + CascadingStrategy v1.DeletionPropagation
+        + Timeout time.Duration
+        + GracePeriod int
+        + ResourceVersion *string
+        + Retries int
+        + OpenapiSchema openapi.Resources
+
+        - delete(namespace string, name string) error
+        - patchSimple(obj runtime.Object, modified []byte, source string, namespace string, name string, errOut io.Writer) ([]byte, runtime.Object, error)
+        - deleteAndCreate(original runtime.Object, modified []byte, namespace string, name string) ([]byte, runtime.Object, error)
+
+        + Patch(current runtime.Object, modified []byte, source string, namespace string, name string, errOut io.Writer) ([]byte, runtime.Object, error)
+
+    }
+    class SetLastAppliedOptions << (S,Aquamarine) >> {
+        - infoList []*resource.Info
+        - namespace string
+        - enforceNamespace bool
+        - dryRunStrategy util.DryRunStrategy
+        - dryRunVerifier *resource.DryRunVerifier
+        - shortOutput bool
+        - output string
+        - patchBufferList []PatchBuffer
+        - builder *resource.Builder
+        - unstructuredClientForMapping <font color=blue>func</font>(*meta.RESTMapping) (resource.RESTClient, error)
+
+        + CreateAnnotation bool
+        + PrintFlags *genericclioptions.PrintFlags
+        + PrintObj printers.ResourcePrinterFunc
+        + FilenameOptions resource.FilenameOptions
+
+        + Complete(f util.Factory, cmd *cobra.Command) error
+        + Validate() error
+        + RunSetLastApplied() error
+
+    }
+    class ViewLastAppliedOptions << (S,Aquamarine) >> {
+        + FilenameOptions resource.FilenameOptions
+        + Selector string
+        + LastAppliedConfigurationList []string
+        + OutputFormat string
+        + All bool
+        + Factory util.Factory
+
+        + Complete(cmd *cobra.Command, f util.Factory, args []string) error
+        + Validate(cmd *cobra.Command) error
+        + RunApplyViewLastApplied(cmd *cobra.Command) error
+
+    }
+    class pruneResource << (S,Aquamarine) >> {
+        - group string
+        - version string
+        - kind string
+        - namespaced bool
+
+        + String() string
+
+    }
+    class pruner << (S,Aquamarine) >> {
+        - mapper meta.RESTMapper
+        - dynamicClient dynamic.Interface
+        - visitedUids sets.String
+        - visitedNamespaces sets.String
+        - labelSelector string
+        - fieldSelector string
+        - cascadingStrategy v1.DeletionPropagation
+        - dryRunStrategy util.DryRunStrategy
+        - gracePeriod int
+        - toPrinter <font color=blue>func</font>(string) (printers.ResourcePrinter, error)
+        - out io.Writer
+
+        - pruneAll(o *ApplyOptions) error
+        - prune(namespace string, mapping *meta.RESTMapping) error
+        - delete(namespace string, name string, mapping *meta.RESTMapping) error
+
+    }
+}
+"genericclioptions.IOStreams" *-- "apply.ApplyOptions"
+"genericclioptions.IOStreams" *-- "apply.SetLastAppliedOptions"
+"genericclioptions.IOStreams" *-- "apply.ViewLastAppliedOptions"
+
+
+@enduml

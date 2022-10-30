@@ -1,0 +1,12 @@
+@startuml
+'https://plantuml.com/sequence-diagram
+
+folder pkg {
+package cmd <<folder>> {
+    file cmd{
+        struct a {
+        }
+    }
+}
+
+@enduml
